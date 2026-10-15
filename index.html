@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Elden Realm — Lands Between (3D Souls Fan Remake)</title>
+<meta name="description" content="A free 3D souls-like fan remake for desktop: explore the Lands Between, rest at Sites of Grace, gather runes, and fell the Fell Omen. Keyboard + mouse." />
+<link rel="icon" href="data:," />
+<link rel="stylesheet" href="styles.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<!-- damage vignette + letterbox -->
+<div id="vignette"></div>
+<div id="heal-flash"></div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div id="status-plate">
+    <div class="bar hp"><div id="hp-fill"></div><span id="hp-text">100/100</span></div>
+    <div class="bar fp"><div id="fp-fill"></div></div>
+    <div class="bar st"><div id="st-fill"></div></div>
+    <div id="runes-row"><span id="rune-icon">◈</span><span id="runes">0</span><span id="level-tag">LV 1</span></div>
+    <div id="flask-row">
+      <span id="flask-icon">⚱</span><span id="flasks">3</span>
+      <span id="lock-hint">🔒 <span id="lock-state">off</span></span>
+    </div>
+  </div>
+  <div id="compass"><div id="compass-strip"></div><div id="compass-needle">▼</div></div>
+  <canvas id="minimap" width="148" height="148"></canvas>
+  <div id="boss-plate" class="hidden">
+    <div id="boss-name">MORGATH, THE FELL OMEN</div>
+    <div id="boss-bar"><div id="boss-fill"></div></div>
+  </div>
+  <div id="interact-prompt" class="hidden"><span id="interact-key">E</span><span id="interact-text">Rest at Site of Grace</span></div>
+  <div id="message-feed"></div>
+  <div id="boss-intro" class="hidden"><div id="boss-intro-name">MORGATH</div><div id="boss-intro-sub">THE FELL OMEN</div></div>
+  <div id="fell-banner" class="hidden"><div id="fell-title">GREAT ENEMY FELLED</div></div>
+  <div id="died-screen" class="hidden"><div id="died-title">YOU DIED</div><div id="died-sub">runes lost where you fell… retrieve them</div></div>
+  <div id="victory-screen" class="hidden">
+    <div id="victory-title">ELDEN LORD</div>
+    <div id="victory-sub">The Erdtree bows to you. The Lands Between are yours.</div>
+    <div id="victory-stats"></div>
+    <button id="victory-btn" class="btn gold">Journey Again (New Game)</button>
+  </div>
+  <div id="crosshair"></div>
+  <div id="controls-hint">WASD move · Mouse look · LMB light · RMB heavy / hold block · Space roll · Shift sprint · E rest/loot · R flask · F bolt · Q lock-on · C jump · M mute · Esc menu</div>
+</div>
+
+<!-- Grace menu -->
+<div id="grace-menu" class="hidden">
+  <div class="grace-panel">
+    <h2>SITE OF GRACE</h2>
+    <p class="grace-sub" id="grace-name">Stranded Graveyard</p>
+    <div class="grace-stats" id="grace-stats"></div>
+    <div class="grace-cost" id="grace-cost"></div>
+    <div class="grace-buttons">
+      <button class="btn gold" id="btn-rest">Rest <small>refill · respawn world</small></button>
+      <button class="btn" id="btn-vig">Level Vigor <small>+HP</small></button>
+      <button class="btn" id="btn-end">Level Endurance <small>+Stamina</small></button>
+      <button class="btn" id="btn-str">Level Strength <small>+Damage</small></button>
+      <button class="btn ghost" id="btn-leave">Leave [E]</button>
+    </div>
+    <p class="grace-tip">Death respawns enemies but refills flasks. Lost runes wait where you fell.</p>
+  </div>
+</div>
+
+<!-- Pause -->
+<div id="pause-menu" class="hidden">
+  <div class="grace-panel">
+    <h2>PAUSED</h2>
+    <div id="pause-stats"></div>
+    <div class="controls-grid">
+      <div><b>WASD</b> move</div><div><b>Mouse</b> camera (click to lock)</div>
+      <div><b>LMB</b> light attack</div><div><b>RMB</b> heavy · hold to block</div>
+      <div><b>Space</b> dodge roll (i-frames)</div><div><b>Shift</b> sprint</div>
+      <div><b>E</b> rest / traverse / loot</div><div><b>R</b> flask (+HP)</div>
+      <div><b>F</b> spectral bolt (25 FP)</div><div><b>Q</b> lock-on</div>
+      <div><b>C</b> jump</div><div><b>M</b> mute · <b>Esc</b> resume</div>
+    </div>
+    <div class="grace-buttons">
+      <button class="btn gold" id="btn-resume">Resume</button>
+      <button class="btn ghost" id="btn-quit-title">Quit to Title</button>
+    </div>
+  </div>
+</div>
+
+<!-- Title -->
+<div id="title">
+  <div id="title-fog"></div>
+  <div class="title-inner">
+    <div class="title-kicker">A FREE FAN-MADE SOULS-LIKE · DESKTOP 3D</div>
+    <h1 class="title-logo">ELDEN <span>REALM</span></h1>
+    <div class="title-sub">SHADOW OF THE GOLDEN TREE</div>
+    <p class="title-desc">Rise, Tarnished. Cross the Lands Between, rest at golden grace,<br/>gather runes, and fell <b>Morgath, the Fell Omen</b> beyond the fog.</p>
+    <div class="class-row" id="class-row">
+      <button class="class-card selected" data-class="vagabond">
+        <b>VAGABOND</b><small>Balanced knight<br/>HP 130 · Strong sword</small>
+      </button>
+      <button class="class-card" data-class="astrologer">
+        <b>ASTROLOGER</b><small>Spectral bolts<br/>High FP · Low HP</small>
+      </button>
+      <button class="class-card" data-class="bandit">
+        <b>BANDIT</b><small>Fast roller<br/>High stamina · Crits</small>
+      </button>
+    </div>
+    <button id="start-btn" class="btn gold big">▶ &nbsp;Start Game</button>
+    <div class="title-controls">WASD move · Mouse look · LMB attack · RMB heavy/block · Space roll · Shift sprint · E interact · R flask · F bolt · Q lock-on · C jump</div>
+    <div class="title-note">Best on desktop with keyboard + mouse · sound on 🔊 · free fan remake, not affiliated with FromSoftware / Bandai Namco</div>
+    <div id="load-error" class="hidden">⚠ Could not load the 3D engine (CDN blocked?). Check your connection and reload.</div>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+<div id="fps-tag"></div>
+
+<script>
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    if (!window.__game) document.getElementById('load-error').classList.remove('hidden');
+  }, 9000);
+});
+</script>
+<script type="module" src="game.js"></script>
+</body>
+</html>
